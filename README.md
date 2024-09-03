@@ -40,26 +40,29 @@ The `Crime Records Management System` is a `console-based` application designed 
 
 1. **Clone the repository**:
     ```sh
-    git clone https://github.com/AnkushGitRepo/Pharmacy-Management-System.git
+    gh repo clone SARVESH2K6/Crime_Records_Management_System
     ```
 
 2. **Navigate to the project directory**:
     ```sh
-    cd pharmacy-store-management-system
+    cd src CRIME
     ```
 
-3. **Set up the database**:
-    - Create a PostgreSQL database named `pharmacy`.
-    - Run the SQL scripts in the `sql/` directory to create the necessary tables.
+3.**Installation of XAMPP**:
+  - Search 'XAMPP download' in your web browser.
+  - Install and allow all permissions.
+  - Also download the .jar file `mysql-connector-j-9.0.0.jar`.
+  - Add the file to the Refrenced libraries.
 
-4. **Update database connection settings**:
-    - Update the database connection settings in the `DatabaseHandler` class to match your PostgreSQL configuration.
+4. **Set up the database**:
+    - Open Xammp control panel.
+    - Start Apache and MySQL
+    - Once MySQL has started running, click on Admin. It directs you to the localhost in your web browser.
+    - Create a MySQL database named `crime_records`.
+    - Now import the `crime_records.sql` file in the database.
 
 5. **Compile and run the application**:
-    ```sh
-    javac -d bin src/org/example/*.java
-    java -cp bin org.example.Main
-    ```
+    You can directly run the code instead of using command prompt.
 
 ## Usage
 
