@@ -66,188 +66,131 @@ The `Crime Records Management System` is a `console-based` application designed 
 
 ## Usage
 
-### Main Menu
+### Admin Menu
 
-1. **Drug Management**: Manage drug inventory.
-2. **Customer Management**: Manage customer records.
-3. **Manage Cart**: Add drugs to cart, view cart, and checkout.
-4. **Help**: Get information about drugs.
-5. **Print Actions Stack**: View logged user actions.
-6. **Exit**: Exit the application.
+1. **Crime Management**: Manage Criminal records.
+2. **Officer Management**: Manage Officer records.
+3. **Search Records**: Searching both Officer and Criminal records by name, age, (crime type and arrest date for criminals), (Rank and department for Officers).
+4. **Assign Officer**: Assign officer to a crime.
+5. **View Login History**: View all User's Login and Logout actions.
+6. **View Audit Logs**: View all actions of both Admin and User along with Timestamp.
+7. **Exit**: Exit the application.
 
-### Drug Management
+### User Management
 
-- **Add Drug**: Add a new drug to the inventory.
-- **Update Drug**: Update details of an existing drug.
-- **Delete Drug**: Remove a drug from the inventory.
-- **View Drug Inventory**: Display all drugs in the inventory.
-- **List Expired Drugs**: List drugs that have expired.
-- **Help**: Get information about drugs.
+- **Register User**: Register as a User along with password verification.
 
-### Customer Management
-
-- **Register Customer**: Register a new customer.
-- **Delete Customer**: Remove a customer.
-- **Update Customer**: Update customer information.
-- **Manage Cart**: Add drugs to cart, view cart, and checkout for a customer.
-
+  
 ## Database Schema
 
 ### Tables
 
 ```sql
-CREATE TABLE Drugs (
-    drug_id INT PRIMARY KEY CHECK (drug_id >= 1000 AND drug_id <= 9999),
-    drug_name VARCHAR(255) NOT NULL,
-    manufacturer VARCHAR(255) NOT NULL,
-    expiry_date DATE NOT NULL,
-    quantity INT NOT NULL,
-    price DOUBLE PRECISION NOT NULL,
-    description TEXT,
-    tags VARCHAR(255)
+CREATE TABLE `audit_logs` (
+ `log_id` int(11) NOT NULL AUTO_INCREMENT,
+ `user_id` int(11) NOT NULL,
+ `action_type` varchar(50) NOT NULL,
+ `action_description` text DEFAULT NULL,
+ `action_time` timestamp NOT NULL DEFAULT current_timestamp(),
+ PRIMARY KEY (`log_id`),
+ KEY `user_id` (`user_id`),
+ CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 );
 
-CREATE TABLE Customers (
-    email VARCHAR(255) PRIMARY KEY,
-    name VARCHAR(255) NOT NULL CHECK (name !~ '[0-9]'),
-    address VARCHAR(255) NOT NULL,
-    phone_number VARCHAR(15) NOT NULL
+CREATE TABLE `crime_records` (
+ `crime_id` int(11) NOT NULL AUTO_INCREMENT,
+ `name` varchar(100) NOT NULL,
+ `crime_type` varchar(100) DEFAULT NULL,
+ `age` int(11) DEFAULT NULL CHECK (`age` > 0),
+ `arrest_date` date DEFAULT NULL,
+ PRIMARY KEY (`crime_id`)
 );
 
-CREATE TABLE Cart (
-    cart_id SERIAL PRIMARY KEY,
-    email VARCHAR(255),
-    drug_id INT,
-    quantity INT NOT NULL,
-    FOREIGN KEY (email) REFERENCES Customers(email),
-    FOREIGN KEY (drug_id) REFERENCES Drugs(drug_id),
-    UNIQUE (email, drug_id)
+CREATE TABLE `officers` (
+ `officer_id` int(11) NOT NULL AUTO_INCREMENT,
+ `officer_name` varchar(100) NOT NULL,
+ `rank` varchar(50) NOT NULL,
+ `age` int(11) DEFAULT NULL CHECK (`age` > 0),
+ `department` varchar(100) DEFAULT NULL,
+ PRIMARY KEY (`officer_id`)
 );
 
-CREATE TABLE Orders (
-    order_id SERIAL PRIMARY KEY,
-    email VARCHAR(255),
-    order_date DATE NOT NULL,
-    total_amount DOUBLE PRECISION NOT NULL,
-    FOREIGN KEY (email) REFERENCES Customers(email)
+CREATE TABLE `officer_cases` (
+ `officer_case_id` int(11) NOT NULL AUTO_INCREMENT,
+ `officer_id` int(11) NOT NULL,
+ `crime_id` int(11) NOT NULL,
+ PRIMARY KEY (`officer_case_id`),
+ KEY `officer_id` (`officer_id`),
+ KEY `crime_id` (`crime_id`),
+ CONSTRAINT `officer_cases_ibfk_1` FOREIGN KEY (`officer_id`) REFERENCES `officers` (`officer_id`) ON DELETE CASCADE,
+ CONSTRAINT `officer_cases_ibfk_2` FOREIGN KEY (`crime_id`) REFERENCES `crime_records` (`crime_id`) ON DELETE CASCADE
 );
 
-CREATE TABLE OrderItems (
-    order_item_id SERIAL PRIMARY KEY,
-    order_id INT NOT NULL,
-    drug_id INT NOT NULL,
-    quantity INT NOT NULL,
-    price DOUBLE PRECISION NOT NULL,
-    FOREIGN KEY (order_id) REFERENCES Orders(order_id),
-    FOREIGN KEY (drug_id) REFERENCES Drugs(drug_id)
-);
-
-CREATE TABLE Drugs_Audit (
-    audit_id SERIAL PRIMARY KEY,
-    operation VARCHAR(10) NOT NULL,
-    drug_id INT NOT NULL,
-    old_drug_name VARCHAR(255),
-    old_manufacturer VARCHAR(255),
-    old_expiry_date DATE,
-    old_quantity INT,
-    old_price DOUBLE PRECISION,
-    old_description TEXT,
-    old_tags VARCHAR(255),
-    new_drug_name VARCHAR(255),
-    new_manufacturer VARCHAR(255),
-    new_expiry_date DATE,
-    new_quantity INT,
-    new_price DOUBLE PRECISION,
-    new_description TEXT,
-    new_tags VARCHAR(255),
-    operation_time VARCHAR(50)
+CREATE TABLE `users` (
+ `id` int(11) NOT NULL AUTO_INCREMENT,
+ `username` varchar(50) NOT NULL,
+ `password` varchar(255) NOT NULL,
+ `role` enum('User','Admin') NOT NULL DEFAULT 'User',
+ PRIMARY KEY (`id`),
+ UNIQUE KEY `username` (`username`)
 );
 ```
 
-### Trigger for Any Update or Insert Operation On Drug Table. This Trigger Will Insert Respective Data Into Drugs_Audit Table
+### Triggers for inserting logs into audit_logs table after Insert, Update, Delete operations on both Officer and Criminal Records
 ```sql
-CREATE OR REPLACE FUNCTION log_drug_changes() RETURNS TRIGGER AS $$
-BEGIN
-    IF TG_OP = 'DELETE' THEN
-        INSERT INTO Drugs_Audit (
-            operation, drug_id, old_drug_name, old_manufacturer, old_expiry_date, old_quantity, old_price, old_description, old_tags,
-            new_drug_name, new_manufacturer, new_expiry_date, new_quantity, new_price, new_description, new_tags, operation_time
-        ) VALUES (
-            'DELETE', OLD.drug_id, OLD.drug_name, OLD.manufacturer, OLD.expiry_date, OLD.quantity, OLD.price, OLD.description, OLD.tags,
-            NULL, NULL, NULL, NULL, NULL, NULL, NULL,
-            TO_CHAR(CURRENT_TIMESTAMP, 'DD/MM/YYYY HH12:MI:SS AM')
-        );
-        RETURN OLD;
-    ELSIF TG_OP = 'UPDATE' THEN
-        INSERT INTO Drugs_Audit (
-            operation, drug_id, old_drug_name, old_manufacturer, old_expiry_date, old_quantity, old_price, old_description, old_tags,
-            new_drug_name, new_manufacturer, new_expiry_date, new_quantity, new_price, new_description, new_tags, operation_time
-        ) VALUES (
-            'UPDATE', OLD.drug_id, OLD.drug_name, OLD.manufacturer, OLD.expiry_date, OLD.quantity, OLD.price, OLD.description, OLD.tags,
-            NEW.drug_name, NEW.manufacturer, NEW.expiry_date, NEW.quantity, NEW.price, NEW.description, NEW.tags,
-            TO_CHAR(CURRENT_TIMESTAMP, 'DD/MM/YYYY HH12:MI:SS AM')
-        );
-        RETURN NEW;
-    END IF;
-END;
-$$ LANGUAGE plpgsql;
+  CREATE TRIGGER `after_crime_delete` AFTER DELETE ON `crime_records`
+ FOR EACH ROW BEGIN
+    INSERT INTO audit_logs (user_id, action_type, action_description, action_time)
+    VALUES (IFNULL(@current_user_id, 1), 'DELETE', CONCAT('Crime record deleted: ', OLD.name, ' (ID: ', OLD.crime_id, ')'), NOW());
+END
 
-CREATE TRIGGER trg_log_drug_changes
-AFTER UPDATE OR DELETE ON Drugs
-FOR EACH ROW
-EXECUTE FUNCTION log_drug_changes();
-```
-### Dummy Data For Drugs Table
-```sql
--- Insert non-expired drugs with descriptions and tags
-INSERT INTO Drugs (drug_id, drug_name, manufacturer, expiry_date, quantity, price, description, tags) VALUES
-(1001, 'Aspirin', 'PharmaCorp', '2025-12-31', 100, 5.99, 'Pain reliever and anti-inflammatory', 'pain,fever,inflammation'),
-(1002, 'Ibuprofen', 'HealthPlus', '2026-11-30', 200, 10.99, 'Anti-inflammatory medication used to reduce fever and treat pain or inflammation', 'pain,fever,inflammation'),
-(1003, 'Paracetamol', 'MediLife', '2025-10-15', 150, 3.99, 'Pain reliever and a fever reducer', 'pain,fever'),
-(1004, 'Amoxicillin', 'Antibiotix', '2025-09-20', 75, 15.49, 'Antibiotic used to treat various bacterial infections', 'infection,antibiotic,bacteria'),
-(1005, 'Ciprofloxacin', 'BioPharma', '2026-01-25', 80, 12.89, 'Antibiotic used to treat bacterial infections', 'infection,antibiotic,bacteria'),
-(1006, 'Lisinopril', 'HeartCare', '2025-08-30', 60, 8.75, 'Medication used to treat high blood pressure and heart failure', 'blood pressure,heart,hypertension'),
-(1007, 'Metformin', 'Diabeat', '2025-07-14', 90, 4.50, 'Medication used to treat type 2 diabetes', 'diabetes,blood sugar'),
-(1008, 'Omeprazole', 'StomachEase', '2025-11-25', 120, 7.20, 'Medication used to treat gastroesophageal reflux disease (GERD)', 'acid reflux,GERD,stomach'),
-(1009, 'Atorvastatin', 'CholestrolFix', '2025-12-01', 110, 9.30, 'Medication used to lower cholesterol and triglyceride levels', 'cholesterol,heart,lipid'),
-(1010, 'Levothyroxine', 'ThyroMed', '2026-02-14', 100, 6.40, 'Medication used to treat hypothyroidism', 'thyroid,hormone'),
-(1011, 'Amlodipine', 'CardioSafe', '2025-06-20', 95, 5.10, 'Medication used to treat high blood pressure and coronary artery disease', 'blood pressure,heart,hypertension'),
-(1012, 'Simvastatin', 'LipControl', '2026-03-10', 85, 6.90, 'Medication used to control high cholesterol', 'cholesterol,heart,lipid'),
-(1013, 'Clopidogrel', 'BloodThinner', '2025-08-22', 70, 11.00, 'Medication used to prevent blood clots', 'blood clots,heart'),
-(1014, 'Losartan', 'HyperTensionRelief', '2025-09-14', 65, 7.75, 'Medication used to treat high blood pressure', 'blood pressure,heart,hypertension'),
-(1015, 'Gabapentin', 'NerveRelief', '2025-10-05', 130, 14.20, 'Medication used to treat nerve pain and seizures', 'nerve pain,seizures,neuropathy'),
-(1016, 'ExpiredDrug1', 'ExpiredMeds', '2023-12-31', 50, 5.50, 'Expired pain reliever', 'expired,pain relief'),
-(1017, 'ExpiredDrug2', 'OldPharma', '2022-11-30', 40, 6.60, 'Expired anti-inflammatory medication', 'expired,anti-inflammatory'),
-(1018, 'ExpiredDrug3', 'PastMeds', '2021-10-15', 30, 7.70, 'Expired fever reducer', 'expired,fever reducer'),
-(1019, 'ExpiredDrug4', 'OutdatedPharma', '2022-09-20', 25, 8.80, 'Expired antibiotic', 'expired,antibiotic'),
-(1020, 'ExpiredDrug5', 'OldStock', '2023-01-25', 20, 9.90, 'Expired heart medication', 'expired,heart'),
-(1021, 'Doxycycline', 'Antibiotix', '2025-12-31', 100, 13.45, 'Antibiotic used to treat bacterial infections', 'infection,antibiotic,bacteria'),
-(1022, 'Metoprolol', 'HeartCare', '2025-11-30', 200, 10.75, 'Medication used to treat high blood pressure and chest pain', 'blood pressure,heart,angina'),
-(1023, 'Albuterol', 'BreathEasy', '2026-10-15', 150, 12.00, 'Medication used to treat breathing problems such as asthma', 'asthma,breathing,bronchodilator'),
-(1024, 'Pantoprazole', 'GastroCare', '2025-09-20', 75, 14.55, 'Medication used to treat stomach and esophagus problems', 'acid reflux,GERD,stomach'),
-(1025, 'Zolpidem', 'SleepWell', '2025-01-25', 80, 8.25, 'Medication used to treat insomnia', 'insomnia,sleep aid'),
-(1026, 'Hydrochlorothiazide', 'DiureticCo', '2025-08-15', 15, 5.60, 'Medication used to treat high blood pressure and fluid retention', 'blood pressure,diuretic'),
-(1027, 'Furosemide', 'WaterPill', '2025-07-10', 10, 4.50, 'Diuretic used to reduce swelling and fluid retention', 'diuretic,fluid retention'),
-(1028, 'Warfarin', 'AntiCoag', '2026-05-30', 18, 12.30, 'Anticoagulant used to prevent blood clots', 'anticoagulant,blood clots'),
-(1029, 'Hydrocodone', 'PainRelief', '2025-09-05', 8, 15.00, 'Pain relief medication for severe pain', 'pain relief,opioid'),
-(1030, 'Lorazepam', 'CalmMeds', '2025-11-20', 12, 9.80, 'Medication used to treat anxiety disorders', 'anxiety,calm');
+CREATE TRIGGER `after_crime_insert` AFTER INSERT ON `crime_records`
+ FOR EACH ROW BEGIN
+    INSERT INTO audit_logs (user_id, action_type, action_description, action_time)
+    VALUES (IFNULL(@current_user_id, 1), 'INSERT', CONCAT('New crime record added: ', NEW.name, ' (ID: ', NEW.crime_id, ')'), NOW());
+END
+
+CREATE TRIGGER `after_crime_update` AFTER UPDATE ON `crime_records`
+ FOR EACH ROW BEGIN
+    INSERT INTO audit_logs (user_id, action_type, action_description, action_time)
+    VALUES (IFNULL(@current_user_id, 1), 'UPDATE', CONCAT('Crime record updated: ', OLD.name, ' (ID: ', OLD.crime_id, ')'), NOW());
+END
+
+CREATE TRIGGER `after_officer_delete` AFTER DELETE ON `officers`
+ FOR EACH ROW BEGIN
+    INSERT INTO audit_logs (user_id, action_type, action_description, action_time)
+    VALUES (IFNULL(@current_user_id, 1), 'DELETE', CONCAT('Officer record deleted: ', OLD.officer_name, ' (ID: ', OLD.officer_id, ')'), NOW());
+END
+
+CREATE TRIGGER `after_officer_insert` AFTER INSERT ON `officers`
+ FOR EACH ROW BEGIN
+    INSERT INTO audit_logs (user_id, action_type, action_description, action_time)
+    VALUES (IFNULL(@current_user_id, 1), 'INSERT', CONCAT('New officer added: ', NEW.officer_name, ' (ID: ', NEW.officer_id, ')'), NOW());
+END
+
+CREATE TRIGGER `after_officer_update` AFTER UPDATE ON `officers`
+ FOR EACH ROW BEGIN
+    INSERT INTO audit_logs (user_id, action_type, action_description, action_time)
+    VALUES (IFNULL(@current_user_id, 1), 'UPDATE', CONCAT('Officer record updated: ', OLD.officer_name, ' (ID: ', OLD.officer_id, ')'), NOW());
+END
 
 ```
 
 # Usage Instructions
 ## Prerequisites
 1. Ensure you have Java JDK 8 or above installed.
-2. Ensure you have PostgreSQL installed and running.
+2. Ensure you have Xampp installed and running.
 ## Setup
 1. Clone the repository
-2. Create the `PostgreSQL database` and tables using the provided schema.
-3. Import the sample data into the database.
+2. Create the `MySQL database` named `crime_records`.
+3. Import the `crime_records.sql` file into the database.
 4. Open the project in your preferred Java IDE.
-5. Update the database connection settings in the `DatabaseHandler` class if necessary.
+5. Update the database connection settings in the `AbstractService` class if necessary.
 
 ## Running the Application
 1. Run the `Main` class.
-2. Follow the on-screen instructions to manage drugs, customers, and orders.
+2. Follow the on-screen instructions to perform the desired actions.
+3. **NOTE**: You will be registered as a user by default. To perform Admin actions, username:`Admin`, password:`password`.
 
 # Conclusion
-The Pharmacy Store Management System will streamline the management of drug inventory and customer transactions. The use of Java for backend development, a robust DBMS for data storage, and efficient data structures such as ArrayList, Stacks, and LinkedList will ensure the system is both reliable and scalable. The final system will be a console-based application with all outputs printed to the terminal or files, ensuring simplicity and ease of use.
+The Crime Records Management System will streamline the management of Officer and Criminal Records. The use of Java for backend development, a robust DBMS for data storage, and efficient data structures such as ArrayList, Stacks, and LinkedList will ensure the system is both reliable and scalable. The final system will be a console-based application with all outputs printed to the terminal, ensuring simplicity and ease of use.
